@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Soil Texture Calculator</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #a8edea, #fed6e3);
+      padding: 20px;
+    }
+    .container {
+      background: #ffffffcc;
+      max-width: 800px;
+      margin: auto;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    }
+    h1 {
+      text-align: center;
+      color: #34495e;
+    }
+    label {
+      margin-top: 10px;
+      display: block;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    button {
+      margin-top: 15px;
+      padding: 12px;
+      width: 48%;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #2c3e50;
+    }
+    .sample-block {
+      margin-top: 20px;
+      padding: 20px;
+      background: #e3f2fd;
+      border-radius: 10px;
+      border-left: 6px solid #2196f3;
+    }
+    .button-group {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .result {
+      background: #d1f2eb;
+      border-left: 5px solid #1abc9c;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #888;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #3498db;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Soil Texture Calculator</h1>
+    <div class="button-group">
+      <button onclick="addSample()">Add Sample</button>
+      <button onclick="calculateAll()">Calculate All</button>
+      <button onclick="exportToCSV()">Export CSV</button>
+    </div>
+
+    <div>
+      <h3>Common Blank Readings</h3>
+      <label>Blank Rsc Reading:</label>
+      <input type="number" id="rbRsc">
+      <label>Blank Temperature at Rsc (°C):</label>
+      <input type="number" id="tempRbRsc" value="20">
+
+      <label>Blank Rc Reading:</label>
+      <input type="number" id="rbRc">
+      <label>Blank Temperature at Rc (°C):</label>
+      <input type="number" id="tempRbRc" value="20">
+    </div>
+
+    <div id="samples"></div>
+    <div id="exportTable"></div>
+  </div>
+
+  <script>
+    let sampleCount = 0;
+    const resultsData = [];
+
+    function addSample() {
+      sampleCount++;
+      const sampleDiv = document.createElement("div");
+      sampleDiv.className = "sample-block";
+      sampleDiv.innerHTML = `
+        <h3>Sample ${sampleCount}</h3>
+        <label>Soil Weight (g):</label>
+        <input type="number" value="40" id="weight${sampleCount}">
+
+        <label>Sample Rsc Reading (40 sec):</label>
+        <input type="number" id="rsc${sampleCount}">
+        <label>Sample Temperature at Rsc (°C):</label>
+        <input type="number" id="tempRsc${sampleCount}" value="20">
+
+        <label>Sample Rc Reading (4 hrs):</label>
+        <input type="number" id="rc${sampleCount}">
+        <label>Sample Temperature at Rc (°C):</label>
+        <input type="number" id="tempRc${sampleCount}" value="20">
+
+        <div class="result"><strong id="result${sampleCount}"></strong></div>
+      `;
+      document.getElementById("samples").appendChild(sampleDiv);
+    }
+
+    function getTextureClass(sand, silt, clay) {
+      if (clay >= 40 && silt < 40 && sand <= 45) return "Clay";
+      if (clay >= 27 && clay < 40 && sand <= 20) return "Silty Clay";
+      if (clay >= 27 && clay < 40 && sand > 20) return "Sandy Clay";
+      if (clay >= 20 && clay < 35 && silt > 40) return "Clay Loam";
+      if (clay >= 20 && clay < 35 && sand > 45) return "Sandy Clay Loam";
+      if (clay >= 7 && clay < 27 && silt >= 28 && silt < 50 && sand <= 52) return "Loam";
+      if (clay >= 7 && clay < 20 && sand > 52 && sand < 85) return "Sandy Loam";
+      if (clay < 12 && silt >= 50) return "Silt Loam";
+      if (clay < 12 && silt >= 80) return "Silt";
+      if (sand >= 85 && silt + 1.5 * clay < 15) return "Sand";
+      if (sand >= 70 && silt + 1.5 * clay >= 15 && silt + 2 * clay < 30) return "Loamy Sand";
+      return "Loam";
+    }
+
+    function calculateAll() {
+      resultsData.length = 0;
+
+      const rbRsc = parseFloat(document.getElementById("rbRsc").value);
+      const tempRbRsc = parseFloat(document.getElementById("tempRbRsc").value);
+      const rbRc = parseFloat(document.getElementById("rbRc").value);
+      const tempRbRc = parseFloat(document.getElementById("tempRbRc").value);
+
+      for (let i = 1; i <= sampleCount; i++) {
+        const weight = parseFloat(document.getElementById(`weight${i}`).value);
+        const rsc = parseFloat(document.getElementById(`rsc${i}`).value);
+        const tempRsc = parseFloat(document.getElementById(`tempRsc${i}`).value);
+        const rc = parseFloat(document.getElementById(`rc${i}`).value);
+        const tempRc = parseFloat(document.getElementById(`tempRc${i}`).value);
+
+        const corrRsc = (rsc - (tempRsc - 20) * 0.4) - (rbRsc - (tempRbRsc - 20) * 0.4);
+        const corrRc = (rc - (tempRc - 20) * 0.4) - (rbRc - (tempRbRc - 20) * 0.4);
+
+        const siltClay = (corrRsc * 100) / weight;
+        const clay = (corrRc * 100) / weight;
+        const silt = siltClay - clay;
+        const sand = 100 - silt - clay;
+
+        const textureClass = getTextureClass(sand, silt, clay);
+
+        document.getElementById(`result${i}`).innerText =
+          `Sand: ${sand.toFixed(1)}%, Silt: ${silt.toFixed(1)}%, Clay: ${clay.toFixed(1)}%\nTexture Class: ${textureClass}`;
+
+        resultsData.push({ sample: i, sand: sand.toFixed(1), silt: silt.toFixed(1), clay: clay.toFixed(1), texture: textureClass });
+      }
+    }
+
+    function exportToCSV() {
+      let csv = "Sample,Sand (%),Silt (%),Clay (%),Texture Class\n";
+      resultsData.forEach(row => {
+        csv += `${row.sample},${row.sand},${row.silt},${row.clay},${row.texture}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'soil_texture_results.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
