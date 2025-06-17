@@ -68,19 +68,33 @@
       margin-top: 10px;
       border-radius: 8px;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
+    .file-upload {
+      margin: 20px 0;
     }
-    th, td {
-      border: 1px solid #888;
-      padding: 8px;
-      text-align: center;
-    }
-    th {
-      background-color: #3498db;
+    .file-upload-label {
+      display: inline-block;
+      padding: 10px 15px;
+      background: #3498db;
       color: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .file-upload-label:hover {
+      background: #2980b9;
+    }
+    #fileInput {
+      display: none;
+    }
+    .config-section {
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    .template-info {
+      margin-top: 5px;
+      font-size: 0.9em;
+      color: #555;
     }
   </style>
 </head>
@@ -88,16 +102,27 @@
   <div class="container">
     <h1>Soil Texture Calculator</h1>
     <div class="button-group">
-      <button onclick="addSample()">Add Sample</button>
-      <button onclick="calculateAll()">Calculate All</button>
-      <button onclick="exportToCSV()">Export CSV</button>
+      <button id="addSampleBtn">Add Sample</button>
+      <button id="calculateAllBtn">Calculate All</button>
+      <button id="exportBtn">Export Results</button>
+      <button id="templateBtn">Download Template</button>
     </div>
 
-    <div>
-      <h3>Common Blank Readings</h3>
-      <label>Blank Rsc Reading:</label>
+    <div class="file-upload">
+      <label for="fileInput" class="file-upload-label">Upload Sample Readings CSV</label>
+      <input type="file" id="fileInput" accept=".csv">
+      <div class="template-info">Format: Sample No, RSc, Temp RSc, Rc, Temp Rc</div>
+    </div>
+
+    <div class="config-section">
+      <h3>Common Parameters</h3>
+      <label>Soil Weight (g):</label>
+      <input type="number" id="commonWeight" value="40">
+      
+      <h3>Blank Readings</h3>
+      <label>Blank RSc Reading:</label>
       <input type="number" id="rbRsc">
-      <label>Blank Temperature at Rsc (°C):</label>
+      <label>Blank Temperature at RSc (°C):</label>
       <input type="number" id="tempRbRsc" value="20">
 
       <label>Blank Rc Reading:</label>
@@ -107,12 +132,25 @@
     </div>
 
     <div id="samples"></div>
-    <div id="exportTable"></div>
   </div>
 
   <script>
     let sampleCount = 0;
     const resultsData = [];
+
+    // DOM elements
+    const addSampleBtn = document.getElementById('addSampleBtn');
+    const calculateAllBtn = document.getElementById('calculateAllBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const templateBtn = document.getElementById('templateBtn');
+    const fileInput = document.getElementById('fileInput');
+
+    // Event listeners
+    addSampleBtn.addEventListener('click', addSample);
+    calculateAllBtn.addEventListener('click', calculateAll);
+    exportBtn.addEventListener('click', exportToCSV);
+    templateBtn.addEventListener('click', downloadTemplate);
+    fileInput.addEventListener('change', handleFileUpload);
 
     function addSample() {
       sampleCount++;
@@ -120,12 +158,9 @@
       sampleDiv.className = "sample-block";
       sampleDiv.innerHTML = `
         <h3>Sample ${sampleCount}</h3>
-        <label>Soil Weight (g):</label>
-        <input type="number" value="40" id="weight${sampleCount}">
-
-        <label>Sample Rsc Reading (40 sec):</label>
+        <label>Sample RSc Reading (40 sec):</label>
         <input type="number" id="rsc${sampleCount}">
-        <label>Sample Temperature at Rsc (°C):</label>
+        <label>Sample Temperature at RSc (°C):</label>
         <input type="number" id="tempRsc${sampleCount}" value="20">
 
         <label>Sample Rc Reading (4 hrs):</label>
@@ -136,6 +171,63 @@
         <div class="result"><strong id="result${sampleCount}"></strong></div>
       `;
       document.getElementById("samples").appendChild(sampleDiv);
+    }
+
+    function downloadTemplate() {
+      const template = `Sample No,RSc,Temp RSc,Rc,Temp Rc\n1,26,30,10,32\n2,12,30,6,32\n3,15,30,10,32\n4,18,30,6,28\n5,40,30,31,34`;
+      const blob = new Blob([template], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'soil_texture_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        processCSVData(e.target.result);
+      };
+      reader.readAsText(file);
+    }
+
+    function processCSVData(csvData) {
+      document.getElementById("samples").innerHTML = "";
+      sampleCount = 0;
+      
+      const lines = csvData.split('\n').filter(line => line.trim() !== '');
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      
+      const sampleNoIndex = headers.findIndex(h => h.includes('sample'));
+      const rscIndex = headers.findIndex(h => h.includes('rsc') && !h.includes('temp'));
+      const tempRscIndex = headers.findIndex(h => (h.includes('temp') && h.includes('rsc')));
+      const rcIndex = headers.findIndex(h => h.includes('rc') && !h.includes('temp'));
+      const tempRcIndex = headers.findIndex(h => (h.includes('temp') && h.includes('rc')));
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line || line.split(',').every(cell => cell.trim() === '')) continue;
+        
+        const values = line.split(',').map(v => v.trim());
+        addSample();
+        
+        if (rscIndex !== -1 && values[rscIndex]) document.getElementById(`rsc${sampleCount}`).value = values[rscIndex];
+        if (tempRscIndex !== -1 && values[tempRscIndex]) document.getElementById(`tempRsc${sampleCount}`).value = values[tempRscIndex];
+        if (rcIndex !== -1 && values[rcIndex]) document.getElementById(`rc${sampleCount}`).value = values[rcIndex];
+        if (tempRcIndex !== -1 && values[tempRcIndex]) document.getElementById(`tempRc${sampleCount}`).value = values[tempRcIndex];
+      }
+      
+      if (sampleCount > 0) {
+        alert(`Successfully imported ${sampleCount} samples from CSV`);
+      } else {
+        alert("No valid sample data found in CSV file.");
+      }
     }
 
     function getTextureClass(sand, silt, clay) {
@@ -154,25 +246,35 @@
     }
 
     function calculateAll() {
+      if (sampleCount === 0) {
+        alert("Please add at least one sample before calculating.");
+        return;
+      }
+
       resultsData.length = 0;
 
-      const rbRsc = parseFloat(document.getElementById("rbRsc").value);
-      const tempRbRsc = parseFloat(document.getElementById("tempRbRsc").value);
-      const rbRc = parseFloat(document.getElementById("rbRc").value);
-      const tempRbRc = parseFloat(document.getElementById("tempRbRc").value);
+      const rbRsc = parseFloat(document.getElementById("rbRsc").value) || 0;
+      const tempRbRsc = parseFloat(document.getElementById("tempRbRsc").value) || 20;
+      const rbRc = parseFloat(document.getElementById("rbRc").value) || 0;
+      const tempRbRc = parseFloat(document.getElementById("tempRbRc").value) || 20;
+      const commonWeight = parseFloat(document.getElementById("commonWeight").value) || 40;
 
       for (let i = 1; i <= sampleCount; i++) {
-        const weight = parseFloat(document.getElementById(`weight${i}`).value);
         const rsc = parseFloat(document.getElementById(`rsc${i}`).value);
-        const tempRsc = parseFloat(document.getElementById(`tempRsc${i}`).value);
+        const tempRsc = parseFloat(document.getElementById(`tempRsc${i}`).value) || 20;
         const rc = parseFloat(document.getElementById(`rc${i}`).value);
-        const tempRc = parseFloat(document.getElementById(`tempRc${i}`).value);
+        const tempRc = parseFloat(document.getElementById(`tempRc${i}`).value) || 20;
+
+        if (isNaN(rsc) || isNaN(rc)) {
+          document.getElementById(`result${i}`).innerText = "Error: Missing readings";
+          continue;
+        }
 
         const corrRsc = (rsc - (tempRsc - 20) * 0.4) - (rbRsc - (tempRbRsc - 20) * 0.4);
         const corrRc = (rc - (tempRc - 20) * 0.4) - (rbRc - (tempRbRc - 20) * 0.4);
 
-        const siltClay = (corrRsc * 100) / weight;
-        const clay = (corrRc * 100) / weight;
+        const siltClay = (corrRsc * 100) / commonWeight;
+        const clay = (corrRc * 100) / commonWeight;
         const silt = siltClay - clay;
         const sand = 100 - silt - clay;
 
@@ -181,23 +283,44 @@
         document.getElementById(`result${i}`).innerText =
           `Sand: ${sand.toFixed(1)}%, Silt: ${silt.toFixed(1)}%, Clay: ${clay.toFixed(1)}%\nTexture Class: ${textureClass}`;
 
-        resultsData.push({ sample: i, sand: sand.toFixed(1), silt: silt.toFixed(1), clay: clay.toFixed(1), texture: textureClass });
+        resultsData.push({
+          sample: i,
+          weight: commonWeight,
+          rsc: rsc,
+          tempRsc: tempRsc,
+          rc: rc,
+          tempRc: tempRc,
+          sand: sand.toFixed(1),
+          silt: silt.toFixed(1),
+          clay: clay.toFixed(1),
+          texture: textureClass
+        });
       }
     }
 
     function exportToCSV() {
-      let csv = "Sample,Sand (%),Silt (%),Clay (%),Texture Class\n";
+      if (resultsData.length === 0) {
+        alert("Please calculate results before exporting.");
+        return;
+      }
+      
+      let csv = "Sample No,Weight (g),RSc,Temp RSc,Rc,Temp Rc,Sand (%),Silt (%),Clay (%),Texture Class\n";
       resultsData.forEach(row => {
-        csv += `${row.sample},${row.sand},${row.silt},${row.clay},${row.texture}\n`;
+        csv += `${row.sample},${row.weight},${row.rsc},${row.tempRsc},${row.rc},${row.tempRc},${row.sand},${row.silt},${row.clay},${row.texture}\n`;
       });
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = 'soil_texture_results.csv';
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
+
+    // Add one sample by default when page loads
+    window.addEventListener('DOMContentLoaded', addSample);
   </script>
 </body>
 </html>
